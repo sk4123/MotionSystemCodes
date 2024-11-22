@@ -1,0 +1,8 @@
+pyGcodeSender.py
+modules1
+ui
+modules/__pycache__
+modules/pwm.py
+__pycache__
+.venv
+images

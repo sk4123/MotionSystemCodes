@@ -3,7 +3,7 @@ import webbrowser
 import serial.tools.list_ports as list_ports
 import serial
 import time
-# damn it
+from modules.LED import LED
 
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
     QMetaObject, QObject, QPoint, QRect,
@@ -15,7 +15,7 @@ from PySide6.QtGui import (QAction, QBrush, QColor, QConicalGradient,
     QTransform)
 from PySide6.QtWidgets import (QApplication, QButtonGroup, QCheckBox, QFrame,
     QHBoxLayout, QLabel, QLineEdit, QMainWindow,
-    QMenu, QMenuBar, QProgressBar, QPushButton,
+    QMenu, QMenuBar, QProgressBar, QPushButton, QSlider, 
     QSizePolicy, QSpacerItem, QSplitter, QVBoxLayout,
     QWidget, QTextEdit, QButtonGroup, QDialog, QGridLayout, QListWidget)
 
@@ -24,8 +24,6 @@ class Widget(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("MicroWell Motion Controller")
-
-
 
         ##
         ## Variables
@@ -45,11 +43,18 @@ class Widget(QWidget):
         self.limits_max = [80, 100, 30]
         self.limits_min = [0, 0, 0]
 
-        # Port
-        self.port = None #"/dev/ttyACM0" #None	
+        # Ports
+        self.motionPort = "COM3" #"/dev/ttyACM0" #None
+        self.piezoPort = "COM4"
+        self.ledPort = "COM5"
 
-        # Baudrate
-        self.baudrate = 250000
+        # Baudrates
+        self.motionBaud = 250000
+
+        # Serial communication
+        self.motionSerial = serial.Serial()
+        self.LED = LED(self.ledPort)
+        self.LED.connect()
         
         # Helper variables
         self.marlinrow = -1
@@ -66,6 +71,12 @@ class Widget(QWidget):
 
         # Speed
         self.feed_rate = 300
+
+        # LED values
+        self.redOn = False
+        self.greenOn = False
+        self.blueOn = False
+        self.yellowOn = False
 
         ## 
         ## Creating the GUI Layout
@@ -87,11 +98,19 @@ class Widget(QWidget):
         gcodeLayout.addWidget(self.gcodeInput)
 
         # Stop and Send
-        commandLayout = QHBoxLayout()
+        commandLayout = QVBoxLayout()
         sendButton = QPushButton("Send")
-        stopButton = QPushButton("Stop")
+        #stopButton = QPushButton("Stop")
+        homeButton = QPushButton("Home")
         commandLayout.addWidget(sendButton)
-        commandLayout.addWidget(stopButton)
+        commandLayout.addWidget(homeButton)
+        #commandLayout.addWidget(stopButton)
+
+        gcLayout = QHBoxLayout()
+        gcLayout.addLayout(gcodeLayout)
+        gcLayout.addLayout(commandLayout)
+
+        gcLayout.setContentsMargins(40, 40, 40, 40)
 
         # Experiment Import
         #experimentLayout = QVBoxLayout()
@@ -102,34 +121,34 @@ class Widget(QWidget):
         #experimentLayout.addWidget(loadExperiment)
 
         # Combining the Stop/Send and Experiment layouts in one
-        commandExpLayout = QHBoxLayout()
-        commandExpLayout.addLayout(commandLayout)
+        #commandExpLayout = QHBoxLayout()
+        #commandExpLayout.addLayout(commandLayout)
         #commandExpLayout.addLayout(experimentLayout)
 
         # Marlin Log Data
-        self.log_display = QListWidget()
+        #self.log_display = QListWidget()
 
         # Current locations
-        locationLayout = QGridLayout()
-        xLocationLabel = QLabel("X:")
-        self.x_display = QLineEdit()
-        self.x_display.setReadOnly(True)
-        yLocationLabel = QLabel("Y:")
-        self.y_display = QLineEdit()
-        self.y_display.setReadOnly(True)
-        zLocationLabel = QLabel("Z:")
-        self.z_display = QLineEdit()
-        self.z_display.setReadOnly(True)
-        speed_label = QLabel("Speed Set:")
-        self.speed_set = QLineEdit()
-        locationLayout.addWidget(xLocationLabel, 0, 0)
-        locationLayout.addWidget(yLocationLabel, 1, 0)
-        locationLayout.addWidget(zLocationLabel, 2, 0)
-        locationLayout.addWidget(speed_label, 3, 0)
-        locationLayout.addWidget(self.x_display, 0, 1)
-        locationLayout.addWidget(self.y_display, 1, 1)
-        locationLayout.addWidget(self.z_display, 2, 1)
-        locationLayout.addWidget(self.speed_set, 3, 1)
+        #locationLayout = QGridLayout()
+        #xLocationLabel = QLabel("X:")
+        #self.x_display = QLineEdit()
+        #self.x_display.setReadOnly(True)
+        #yLocationLabel = QLabel("Y:")
+        #self.y_display = QLineEdit()
+        #self.y_display.setReadOnly(True)
+        #zLocationLabel = QLabel("Z:")
+        #self.z_display = QLineEdit()
+        #self.z_display.setReadOnly(True)
+        #speed_label = QLabel("Speed Set:")
+        #self.speed_set = QLineEdit()
+        #locationLayout.addWidget(xLocationLabel, 0, 0)
+        #locationLayout.addWidget(yLocationLabel, 1, 0)
+        #locationLayout.addWidget(zLocationLabel, 2, 0)
+        #locationLayout.addWidget(speed_label, 3, 0)
+        #locationLayout.addWidget(self.x_display, 0, 1)
+        #locationLayout.addWidget(self.y_display, 1, 1)
+        #locationLayout.addWidget(self.z_display, 2, 1)
+        #locationLayout.addWidget(self.speed_set, 3, 1)
 
         # Mode Selection
         modeLayout = QGridLayout()
@@ -154,14 +173,16 @@ class Widget(QWidget):
         modeLayout.addWidget(self.rowInput, 1, 1)
         modeLayout.addWidget(self.colInput, 2, 1)
 
+        modeLayout.setContentsMargins(40, 40, 40, 40)
+
         # Port Selection
-        portLayout = QGridLayout()
-        self.ports = QListWidget()
-        pickPort = QPushButton("Select Port")
-        refreshPort = QPushButton("Refresh Ports")
-        portLayout.addWidget(self.ports, 0, 0, 1, 2)
-        portLayout.addWidget(pickPort, 1, 0)
-        portLayout.addWidget(refreshPort, 1, 1)
+        #portLayout = QGridLayout()
+        #self.ports = QListWidget()
+        #pickPort = QPushButton("Select Port")
+        #refreshPort = QPushButton("Refresh Ports")
+        #portLayout.addWidget(self.ports, 0, 0, 1, 2)
+        #portLayout.addWidget(pickPort, 1, 0)
+        #portLayout.addWidget(refreshPort, 1, 1)
 
         # Calibration
         calLayout = QGridLayout()
@@ -211,18 +232,105 @@ class Widget(QWidget):
 
         calLayout.addWidget(self.activateCal, 0, 0)
 
+        calLayout.setContentsMargins(40, 40, 40, 40)
+
+
+        #LED Controls
+        LEDScaleLayout = QGridLayout()
+        redButton = QPushButton('Red')
+        redButton.setCheckable(True)
+        greenButton = QPushButton('Green')
+        greenButton.setCheckable(True)
+        blueButton = QPushButton('Blue')
+        blueButton.setCheckable(True)
+        yellowButton = QPushButton('Yellow')
+        yellowButton.setCheckable(True)
+
+        redButton.setStyleSheet("QPushButton:checked {background-color: red}")
+        greenButton.setStyleSheet("QPushButton:checked {background-color: green}")
+        blueButton.setStyleSheet("QPushButton:checked {background-color: blue}")
+        yellowButton.setStyleSheet("QPushButton:checked {background-color: yellow}")
+        
+        self.redSlider = QSlider(Qt.Horizontal, self)
+        self.redSlider.setRange(0, 100)
+        self.greenSlider = QSlider(Qt.Horizontal, self)
+        self.greenSlider.setRange(0, 100)
+        self.blueSlider = QSlider(Qt.Horizontal, self)
+        self.blueSlider.setRange(0, 100)
+        self.yellowSlider = QSlider(Qt.Horizontal, self)
+        self.yellowSlider.setRange(0, 100)
+
+        self.redIntensity = QLineEdit(readOnly=True)
+        self.greenIntensity = QLineEdit(readOnly=True)
+        self.blueIntensity = QLineEdit(readOnly=True)
+        self.yellowIntensity = QLineEdit(readOnly=True)
+
+
+        LEDScaleLayout.addWidget(self.redSlider, 0, 0)
+        LEDScaleLayout.addWidget(self.redIntensity, 0, 1)
+        LEDScaleLayout.addWidget(redButton, 0, 2)
+        LEDScaleLayout.addWidget(self.greenSlider, 1, 0)
+        LEDScaleLayout.addWidget(self.greenIntensity, 1, 1)
+        LEDScaleLayout.addWidget(greenButton, 1, 2)
+        LEDScaleLayout.addWidget(self.blueSlider, 2, 0)
+        LEDScaleLayout.addWidget(self.blueIntensity, 2, 1)
+        LEDScaleLayout.addWidget(blueButton, 2, 2)
+        LEDScaleLayout.addWidget(self.yellowSlider, 3, 0)
+        LEDScaleLayout.addWidget(self.yellowIntensity, 3, 1)
+        LEDScaleLayout.addWidget(yellowButton, 3, 2)
+
+        LEDScaleLayout.setContentsMargins(40, 40, 40, 40)
+
+        #Camera Controls
+        cameraLayout = QGridLayout()
+        fpsLabel = QLabel('FPS')
+        exposeLabel = QLabel('Exposure')
+        acqLabel = QLabel('Acquisition Interval')
+        fpsVal = QLineEdit()
+        exposeVal = QLineEdit()
+        acqVal = QLineEdit()
+        cameraLayout.addWidget(fpsLabel, 0, 0)
+        cameraLayout.addWidget(fpsVal, 0, 1)
+        cameraLayout.addWidget(exposeLabel, 1, 0)
+        cameraLayout.addWidget(exposeVal, 1, 1)
+        cameraLayout.addWidget(acqLabel, 2, 0)
+        cameraLayout.addWidget(acqVal, 2, 1)
+
+        cameraLayout.setContentsMargins(40, 40, 40, 40)
+
+        #Piezo Controls
+        piezoLayout = QHBoxLayout()
+        piezoButtonLayout = QVBoxLayout()
+        pincButton = QPushButton('+')
+        pdecButton = QPushButton('-')
+        piezoButtonLayout.addWidget(pincButton)
+        piezoButtonLayout.addWidget(pdecButton)
+        piezoInputLayout = QHBoxLayout()
+        pLabel = QLabel('Set Piezo Step (um)')
+        pInput = QLineEdit()
+        piezoInputLayout.addWidget(pLabel)
+        piezoInputLayout.addWidget(pInput)
+        piezoLayout.addLayout(piezoInputLayout)
+        piezoLayout.addLayout(piezoButtonLayout)
+
+        piezoLayout.setContentsMargins(40, 40, 40, 40)
+
+
         # Putting it all together
-        fullLayout.addLayout(gcodeLayout, 0, 0)
-        fullLayout.addLayout(commandExpLayout, 1, 0)
-        fullLayout.addWidget(self.log_display, 2, 0)
-        fullLayout.addLayout(locationLayout, 0, 1) #
-        fullLayout.addLayout(modeLayout, 2, 1) #
-        fullLayout.addLayout(portLayout, 0, 2)
-        fullLayout.addLayout(calLayout, 1, 2) #
+        fullLayout.addLayout(gcLayout, 0, 0)
+        #fullLayout.addLayout(commandExpLayout, 1, 0)
+        #fullLayout.addWidget(self.log_display, 2, 0)
+        #fullLayout.addLayout(locationLayout, 0, 1) #
+        fullLayout.addLayout(modeLayout, 0, 1) #
+        #fullLayout.addLayout(portLayout, 0, 2)
+        fullLayout.addLayout(calLayout, 0, 2) #
+        fullLayout.addLayout(LEDScaleLayout, 1, 0)
+        fullLayout.addLayout(cameraLayout, 1, 1)
+        fullLayout.addLayout(piezoLayout, 1, 2)
+
 
         # Setting fullLayout and the layout of the GUI
         self.setLayout(fullLayout)
-
         
 
         ##
@@ -232,9 +340,10 @@ class Widget(QWidget):
         self.gcodeInput.editingFinished.connect(self.storeCommand)
 
         sendButton.released.connect(self.sendCommand)
-        stopButton.released.connect(self.getCoords) #####
+        homeButton.released.connect(self.home)
+        #stopButton.released.connect(self.getCoords) #####
 
-        self.speed_set.editingFinished.connect(self.speedSet)
+        #self.speed_set.editingFinished.connect(self.speedSet)
 
         #loadExperiment.released.connect(self.pickExperiment)
 
@@ -249,8 +358,8 @@ class Widget(QWidget):
 
         self.all.toggled.connect(self.imageAll)
 
-        pickPort.released.connect(self.selectPort)
-        refreshPort.released.connect(self.refreshPorts)
+        #pickPort.released.connect(self.selectPort)
+        #refreshPort.released.connect(self.refreshPorts)
 
         self.activateCal.toggled.connect(self.calibrationSequence)
 
@@ -276,14 +385,30 @@ class Widget(QWidget):
         zn_5.released.connect(self.press_zn5)
 
 
+        self.redSlider.sliderMoved.connect(self.redPosition)
+        self.greenSlider.sliderMoved.connect(self.greenPosition)
+        self.blueSlider.sliderMoved.connect(self.bluePosition)
+        self.yellowSlider.sliderMoved.connect(self.yellowPosition)
+
+        redButton.toggled.connect(self.redChange)
+        greenButton.toggled.connect(self.greenChange)
+        blueButton.toggled.connect(self.blueChange)
+        yellowButton.toggled.connect(self.yellowChange)
+
+
+
         # Presets
-        self.speed_set.setText(f"{self.feed_rate}")
+        #self.speed_set.setText(f"{self.feed_rate}")
 
 
 
     ##
     ## GUI Functions
     ##
+
+    # Homes all axes
+    def home(self):
+        self.sendCommand(["G28 X Y Z"])
 
     # Takes the input and assigns it to the storedcommand variable
     def storeCommand(self):
@@ -293,7 +418,7 @@ class Widget(QWidget):
 
     # Modified from pyGcodeSender by ______ - modify!!!!!!!
     def sendCommand(self, c = None):
-        if(self.port):
+        if(self.motionPort):
             if self.storedcommand:
                 command = [self.storedcommand]
                 self.storedcommand = None
@@ -306,25 +431,25 @@ class Widget(QWidget):
             #self.getCoords(command)
 
             try:
-                s = serial.Serial(self.port, self.baudrate)
+                self.motionSerial(self.motionPort, self.motionBaud)
                 moveon = True
                 print("Starting the sending process")
             except:
                 print("No Connection")
             
             if(moveon):
-                s.write(b"\r\n\r\n") # Wake up microcontroller
+                self.motionSerial.write(b"\r\n\r\n") # Wake up microcontroller
                 time.sleep(1)
-                s.reset_input_buffer()
+                self.motionPort.reset_input_buffer()
                 print("Sending")
 
                 for code in command:
                     if code.strip().startswith(';') or code.isspace() or len(code) <=0:
                         continue
                     else:
-                        s.write((code+'\n').encode())
+                        self.motionSerial.write((code+'\n').encode())
                         while(1): # Wait untile the former gcode has been completed.
-                            a = s.readline()
+                            a = self.motionSerial.readline()
                             if a.startswith(b'ok'):
                                 break
                             else:
@@ -489,17 +614,17 @@ class Widget(QWidget):
             self.well_mode = False
 
     #
-    def getPorts(self):
-        self.ports.clear()
-        self.ports.addItems([a.device for a in list_ports.comports()])
+    #def getPorts(self):
+        #self.ports.clear()
+        #self.ports.addItems([a.device for a in list_ports.comports()])
         # 3 is Marlin??
         # 4 is LED driver
 
     #
-    def selectPort(self):
-        print("Getting new port")
-        self.port = self.ports.currentItem().text()
-        print(f"New port: {self.port}")
+    #def selectPort(self):
+        #print("Getting new port")
+        #self.port = self.ports.currentItem().text()
+        #print(f"New port: {self.port}")
 
     #
     def refreshPorts(self):
@@ -642,3 +767,59 @@ class Widget(QWidget):
             return True
         else:
             return False
+        
+    ##
+    ## LED
+    ##
+        
+    # Red Slider Position display
+    def redPosition(self):
+        redValue = self.redSlider.value()
+        self.redIntensity.setText(f"{redValue}")
+        redBrightness = int(redValue)/100
+        if self.redOn:
+            LED.turnOnLED(self.LED, 2, redBrightness)
+            
+
+    # Is the light on or off
+    def redChange(self):
+        self.redOn = not self.redOn
+        if self.redOn:
+            #LED.turnOnLED(self.LED, 2, redBrightness)
+            return
+        else:
+            LED.turnOffLED(self.LED, 2)
+
+    # Green Slider Position display
+    def greenPosition(self):
+        greenValue = self.greenSlider.value()
+        self.greenIntensity.setText(f"{greenValue}")
+        if self.greenOn:
+            LED.ExecuteCommandBuffer(1, int(greenValue)/100)
+    
+    # Is the light on or off
+    def greenChange(self):
+        self.greenOn = not self.greenOn
+
+    # Blue Slider Position display
+    def bluePosition(self):
+        blueValue = self.blueSlider.value()
+        self.blueIntensity.setText(f"{blueValue}")
+        if self.blueOn:
+            LED.ExecuteCommandBuffer(4, int(blueValue)/100)
+
+    # Is the light on or off
+    def blueChange(self):
+        self.blueOn = not self.blueOn
+
+    # Yellow Slider Position display
+    def yellowPosition(self):
+        yellowValue = self.yellowSlider.value()
+        self.yellowIntensity.setText(f"{yellowValue}")
+        if self.yellowOn:
+            LED.ExecuteCommandBuffer(3, int(yellowValue)/100)
+
+    # Is the light on or off
+    def yellowChange(self):
+        self.yellowOn = not self.yellowOn
+

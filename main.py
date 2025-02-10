@@ -24,3 +24,22 @@ sys.exit(app.exec())
 # to determine the OS
 #import platform
 #C:\Users\Iris Kinetics\AppData\Local\Programs\Python
+
+'''
+# Called when fps is changed
+def setFPSLine(self):
+    fpsline.setText(self.Cam.retreiveFPS())
+
+# Called when fps or exp is changed
+def setExpLine(self):
+    expLine.setText(self.Cam.retreiveEXP())
+
+# Called when acq is change
+def setAcqLine(self):
+    acqaline.setText(self.Cam.retreiveACQ())
+
+
+def retreiveFPS(self):
+    return FPS
+
+'''

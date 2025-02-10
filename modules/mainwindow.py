@@ -4,6 +4,7 @@ import serial.tools.list_ports as list_ports
 import serial
 import time
 from modules.LED import LED
+from modules.FPS import Camera
 
 from PySide6.QtCore import (QCoreApplication, QDate, QDateTime, QLocale,
     QMetaObject, QObject, QPoint, QRect,
@@ -77,6 +78,12 @@ class Widget(QWidget):
         self.greenOn = False
         self.blueOn = False
         self.yellowOn = False
+
+        #LED Brightness
+        self.redBrightness = 0
+        self.greenBrightness = 0 
+        self.blueBrightness = 0
+        self.yellowBrightness = 0 
 
         ## 
         ## Creating the GUI Layout
@@ -286,15 +293,15 @@ class Widget(QWidget):
         fpsLabel = QLabel('FPS')
         exposeLabel = QLabel('Exposure')
         acqLabel = QLabel('Acquisition Interval')
-        fpsVal = QLineEdit()
-        exposeVal = QLineEdit()
-        acqVal = QLineEdit()
+        self.fpsVal = QLineEdit()
+        self.exposeVal = QLineEdit()
+        self.acqVal = QLineEdit()
         cameraLayout.addWidget(fpsLabel, 0, 0)
-        cameraLayout.addWidget(fpsVal, 0, 1)
+        cameraLayout.addWidget(self.fpsVal, 0, 1)
         cameraLayout.addWidget(exposeLabel, 1, 0)
-        cameraLayout.addWidget(exposeVal, 1, 1)
+        cameraLayout.addWidget(self.exposeVal, 1, 1)
         cameraLayout.addWidget(acqLabel, 2, 0)
-        cameraLayout.addWidget(acqVal, 2, 1)
+        cameraLayout.addWidget(self.acqVal, 2, 1)
 
         cameraLayout.setContentsMargins(40, 40, 40, 40)
 
@@ -394,6 +401,13 @@ class Widget(QWidget):
         greenButton.toggled.connect(self.greenChange)
         blueButton.toggled.connect(self.blueChange)
         yellowButton.toggled.connect(self.yellowChange)
+
+        self.fpsVal.editingFinished.connect(self.setFPS)
+        self.exposeVal.editingFinished.connect(self.setExp)
+        self.acqVal.editingFinished.connect(self.setAcq)
+
+        self.Cam = Camera()
+        self.Cam.find_and_init_cam()
 
 
 
@@ -776,50 +790,80 @@ class Widget(QWidget):
     def redPosition(self):
         redValue = self.redSlider.value()
         self.redIntensity.setText(f"{redValue}")
-        redBrightness = int(redValue)/100
+        self.redBrightness = int(redValue)/100
         if self.redOn:
-            LED.turnOnLED(self.LED, 2, redBrightness)
+            LED.turnOnLED(self.LED, 2, self.redBrightness)
             
 
     # Is the light on or off
     def redChange(self):
         self.redOn = not self.redOn
         if self.redOn:
-            #LED.turnOnLED(self.LED, 2, redBrightness)
+            self.LED.turnOnLED(2, self.redBrightness)
             return
         else:
-            LED.turnOffLED(self.LED, 2)
+            self.LED.turnOffLED(2)
 
     # Green Slider Position display
     def greenPosition(self):
         greenValue = self.greenSlider.value()
         self.greenIntensity.setText(f"{greenValue}")
+        self.greenBrightness = int(greenValue)/100
         if self.greenOn:
-            LED.ExecuteCommandBuffer(1, int(greenValue)/100)
+            self.LED.turnOnLED(1, self.greenBrightness)
     
     # Is the light on or off
     def greenChange(self):
         self.greenOn = not self.greenOn
+        if self.greenOn:
+            self.LED.turnOnLED(1, self.greenBrightness)
+            return
+        else:
+            self.LED.turnOffLED(1)
 
     # Blue Slider Position display
     def bluePosition(self):
         blueValue = self.blueSlider.value()
         self.blueIntensity.setText(f"{blueValue}")
+        self.blueBrightness = int(blueValue)/100
         if self.blueOn:
-            LED.ExecuteCommandBuffer(4, int(blueValue)/100)
+            self.LED.turnOnLED(4, self.blueBrightness)
 
     # Is the light on or off
     def blueChange(self):
         self.blueOn = not self.blueOn
+        if self.blueOn:
+            self.LED.turnOnLED(4, self.blueBrightness)
+            return
+        else:
+            self.LED.turnOffLED(4)
 
     # Yellow Slider Position display
     def yellowPosition(self):
         yellowValue = self.yellowSlider.value()
         self.yellowIntensity.setText(f"{yellowValue}")
+        self.yellowBrightness = int(yellowValue)/100
         if self.yellowOn:
-            LED.ExecuteCommandBuffer(3, int(yellowValue)/100)
+            self.LED.turnOnLED(3, self.yellowBrightness)
 
     # Is the light on or off
     def yellowChange(self):
         self.yellowOn = not self.yellowOn
+        if self.yellowOn:
+            self.LED.turnOnLED(3, self.yellowBrightness)
+            return
+        else:
+            self.LED.turnOffLED(3)
 
+    
+    #Set FPS
+    def setFPS(self):
+        self.Cam.set_FPS(float(self.fpsVal.text()))
+
+    #Set Exposure
+    def setExp(self):
+        self.Cam.set_exposure(float(self.exposeVal.text()))
+
+    #Set Acquisition Interval
+    def setAcq(self):
+        self.Cam.setAcquisitionInterval(float(self.acqVal.text()))
